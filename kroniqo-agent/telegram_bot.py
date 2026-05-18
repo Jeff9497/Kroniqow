@@ -39,6 +39,15 @@ except ImportError:
     TELEGRAM_OK = False
 
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+
+def md_to_html(text):
+    """Convert markdown formatting to Telegram HTML."""
+    import re as _r
+    text = _r.sub(r"\*\*(.+?)\*\*", r"<b></b>", text)
+    text = _r.sub(r"\*([^*]+?)\*", r"<i></i>", text)
+    text = _r.sub(r"`([^`]+)`", r"<code></code>", text)
+    return text
+
 active_backend = DEFAULT_BACKEND
 
 
@@ -146,7 +155,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ).strip()
 
         await update.message.reply_text(
-            f"{display}\n\n"
+            f"{md_to_html(display)}\n\n"
             f"<i>Domain: {domain} | Confidence: {confidence} | ID: {decision_id}</i>",
             parse_mode="HTML"
         )
