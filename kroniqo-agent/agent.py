@@ -11,6 +11,14 @@ import requests
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'kroniqo-core'))
 from consequence_graph import log_decision, record_outcome, get_biography, get_behavioral_modifier
 
+# Auto-judge (optional — works if API keys are set)
+try:
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'tools'))
+    from auto_judge import auto_judge
+    AUTO_JUDGE_AVAILABLE = True
+except ImportError:
+    AUTO_JUDGE_AVAILABLE = False
+
 # ── Backend configs ───────────────────────────────────────────────────────────
 BACKENDS = {
     "claude": {
@@ -217,6 +225,18 @@ def ask(domain: str, task: str, backend: str = DEFAULT_BACKEND):
     print(f"{'='*60}")
     print(answer)
     print(f"\nDecision ID : {decision_id}  |  Confidence: {confidence}")
+
+    # Auto-judge if available
+    if AUTO_JUDGE_AVAILABLE:
+        print(f"  [AutoJudge running...]")
+        verdict = auto_judge(decision_id, domain, task, answer)
+        if verdict in ("correct", "wrong"):
+            print(f"  [AutoJudge] Done — no manual outcome needed.")
+        elif verdict == "pending":
+            print(f"  To record manually: outcome {decision_id} correct/wrong")
+    else:
+        print(f"  To record outcome: outcome {decision_id} correct/wrong")
+
     print(f"{'='*60}\n")
     return answer, confidence, decision_id
 
