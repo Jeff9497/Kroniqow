@@ -251,15 +251,9 @@ async def cmd_backends(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
-def run_telegram():
-    if not TELEGRAM_OK:
-        print("[!] Install: pip install python-telegram-bot")
-        return False
-    if not BOT_TOKEN:
-        print("[!] No TELEGRAM_BOT_TOKEN — run agent.py and paste your token to configure")
-        return False
-
-    app = Application.builder().token(BOT_TOKEN).build()
+async def _run_bot(token):
+    """Async bot runner — works safely in background threads."""
+    app = Application.builder().token(token).build()
     app.add_handler(CommandHandler("start",     cmd_start))
     app.add_handler(CommandHandler("ask",       cmd_ask))
     app.add_handler(CommandHandler("debug",     cmd_debug))
@@ -269,8 +263,35 @@ def run_telegram():
     app.add_handler(CommandHandler("backends",  cmd_backends))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print(f"[Telegram] @Kroniq09_bot running — backend: {active_backend.upper()}")
-    app.run_polling(drop_pending_updates=True)
+    async with app:
+        await app.start()
+        await app.updater.start_polling(drop_pending_updates=True)
+        print(f"[Telegram] Bot running — backend: {active_backend.upper()}")
+        # Keep running until cancelled
+        while True:
+            await asyncio.sleep(1)
+
+
+def run_telegram():
+    """Entry point — safe to call from background thread."""
+    if not TELEGRAM_OK:
+        print("[!] Install: pip install python-telegram-bot")
+        return False
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    if not token:
+        print("[!] No TELEGRAM_BOT_TOKEN configured")
+        return False
+
+    # Create a new event loop for this thread
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(_run_bot(token))
+    except Exception as e:
+        if "cancel" not in str(e).lower():
+            print(f"[Telegram] Error: {e}")
+    finally:
+        loop.close()
     return True
 
 
