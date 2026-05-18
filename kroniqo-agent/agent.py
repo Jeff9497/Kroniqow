@@ -7,6 +7,16 @@ Supports structured commands AND free natural chat mode.
 import sys
 import os
 import requests
+from pathlib import Path
+
+# Auto-load .env config if present
+_env_file = Path(__file__).parent / ".env"
+if _env_file.exists():
+    for _line in _env_file.read_text().splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith("#") and "=" in _line:
+            _k, _v = _line.split("=", 1)
+            os.environ.setdefault(_k.strip(), _v.strip())
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'kroniqo-core'))
 from consequence_graph import log_decision, record_outcome, get_biography, get_behavioral_modifier

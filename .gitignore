@@ -8,3 +8,4 @@ venv/
 *.db-shm
 *.db-wal
 *_fixed.py
+.env
