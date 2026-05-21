@@ -1,6 +1,6 @@
 """
 kroniqo-core: Consequence Graph Engine
-The heart of Kroniqo — tracks decisions, outcomes, and shapes agent behavior over time.
+The heart of Kroniqo — tracks decisions, outcomes, skills, and shapes agent behavior over time.
 """
 
 import sqlite3
@@ -30,15 +30,49 @@ def init_db():
             notes TEXT
         )
     """)
+    # Skills table — what Kroniqo has learned to DO, not just accuracy
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS skills (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            domain TEXT NOT NULL,
+            description TEXT NOT NULL,
+            steps TEXT NOT NULL,
+            times_used INTEGER DEFAULT 0,
+            times_succeeded INTEGER DEFAULT 0,
+            times_failed INTEGER DEFAULT 0,
+            last_used TEXT,
+            created_at TEXT NOT NULL,
+            confidence REAL DEFAULT 0.5
+        )
+    """)
+    # Cron jobs table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS cron_jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task TEXT NOT NULL,
+            domain TEXT NOT NULL DEFAULT 'general',
+            interval_seconds INTEGER NOT NULL,
+            next_run TEXT NOT NULL,
+            last_run TEXT,
+            enabled INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL,
+            run_count INTEGER DEFAULT 0
+        )
+    """)
+    # User profile table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS user_profile (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
     conn.commit()
     conn.close()
 
 
 def log_decision(domain: str, task: str, confidence: float, context: dict = None):
-    """
-    Log a decision before its outcome is known.
-    Returns the decision ID to update later with the outcome.
-    """
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("""
@@ -58,11 +92,6 @@ def log_decision(domain: str, task: str, confidence: float, context: dict = None
 
 
 def record_outcome(decision_id: int, outcome: str, magnitude: str = "medium", notes: str = ""):
-    """
-    Record what actually happened after a decision.
-    outcome: 'correct' | 'wrong' | 'partial'
-    magnitude: 'small' | 'medium' | 'large'
-    """
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("""
@@ -74,14 +103,192 @@ def record_outcome(decision_id: int, outcome: str, magnitude: str = "medium", no
     conn.close()
 
 
-def get_biography(domain: str = None) -> dict:
-    """
-    Build the agent's biography — the core of what shapes its behavior.
-    Applies recency decay: recent events weigh more than old ones.
-    """
+# ── Skills system ─────────────────────────────────────────────────────────────
+
+def save_skill(name: str, domain: str, description: str, steps: list) -> int:
+    """Save a learned skill. Kroniqo ages its procedural knowledge."""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    try:
+        c.execute("""
+            INSERT INTO skills (name, domain, description, steps, created_at, last_used)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (name, domain, description, json.dumps(steps), now, now))
+        skill_id = c.lastrowid
+    except sqlite3.IntegrityError:
+        # Update existing skill
+        c.execute("""
+            UPDATE skills SET description=?, steps=?, last_used=? WHERE name=?
+        """, (description, json.dumps(steps), now, name))
+        c.execute("SELECT id FROM skills WHERE name=?", (name,))
+        skill_id = c.fetchone()[0]
+    conn.commit()
+    conn.close()
+    return skill_id
 
+
+def record_skill_outcome(name: str, success: bool):
+    """Age the skill's confidence based on outcome."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT times_used, times_succeeded, times_failed, confidence FROM skills WHERE name=?", (name,))
+    row = c.fetchone()
+    if row:
+        used, succeeded, failed, confidence = row
+        used += 1
+        if success:
+            succeeded += 1
+        else:
+            failed += 1
+        # Bayesian-style confidence update — same aging philosophy as consequence graph
+        new_conf = round((succeeded + 1) / (used + 2), 3)
+        c.execute("""
+            UPDATE skills SET times_used=?, times_succeeded=?, times_failed=?,
+            confidence=?, last_used=? WHERE name=?
+        """, (used, succeeded, failed, new_conf, datetime.utcnow().isoformat(), name))
+    conn.commit()
+    conn.close()
+
+
+def get_skills(domain: str = None) -> list:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    if domain:
+        c.execute("SELECT * FROM skills WHERE domain=? ORDER BY confidence DESC", (domain,))
+    else:
+        c.execute("SELECT * FROM skills ORDER BY confidence DESC")
+    rows = [dict(r) for r in c.fetchall()]
+    conn.close()
+    for r in rows:
+        r['steps'] = json.loads(r['steps'])
+    return rows
+
+
+def get_skill(name: str) -> dict | None:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT * FROM skills WHERE name=?", (name,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        r = dict(row)
+        r['steps'] = json.loads(r['steps'])
+        return r
+    return None
+
+
+# ── Cron jobs ─────────────────────────────────────────────────────────────────
+
+def add_cron_job(task: str, interval_seconds: int, domain: str = "general") -> int:
+    from datetime import timedelta
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    now = datetime.utcnow()
+    next_run = (now + timedelta(seconds=interval_seconds)).isoformat()
+    c.execute("""
+        INSERT INTO cron_jobs (task, domain, interval_seconds, next_run, created_at)
+        VALUES (?, ?, ?, ?, ?)
+    """, (task, domain, interval_seconds, next_run, now.isoformat()))
+    job_id = c.lastrowid
+    conn.commit()
+    conn.close()
+    return job_id
+
+
+def get_due_cron_jobs() -> list:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    c.execute("""
+        SELECT * FROM cron_jobs
+        WHERE enabled=1 AND next_run <= ?
+        ORDER BY next_run ASC
+    """, (now,))
+    rows = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return rows
+
+
+def mark_cron_ran(job_id: int):
+    from datetime import timedelta
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT interval_seconds FROM cron_jobs WHERE id=?", (job_id,))
+    row = c.fetchone()
+    if row:
+        interval = row[0]
+        now = datetime.utcnow()
+        next_run = (now + timedelta(seconds=interval)).isoformat()
+        c.execute("""
+            UPDATE cron_jobs SET last_run=?, next_run=?, run_count=run_count+1 WHERE id=?
+        """, (now.isoformat(), next_run, job_id))
+    conn.commit()
+    conn.close()
+
+
+def list_cron_jobs() -> list:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT * FROM cron_jobs ORDER BY id DESC")
+    rows = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return rows
+
+
+def toggle_cron_job(job_id: int, enabled: bool):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE cron_jobs SET enabled=? WHERE id=?", (1 if enabled else 0, job_id))
+    conn.commit()
+    conn.close()
+
+
+def delete_cron_job(job_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("DELETE FROM cron_jobs WHERE id=?", (job_id,))
+    conn.commit()
+    conn.close()
+
+
+# ── User profile ──────────────────────────────────────────────────────────────
+
+def set_user_profile(key: str, value: str):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("""
+        INSERT OR REPLACE INTO user_profile (key, value, updated_at)
+        VALUES (?, ?, ?)
+    """, (key, value, datetime.utcnow().isoformat()))
+    conn.commit()
+    conn.close()
+
+
+def get_user_profile(key: str = None) -> dict:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    if key:
+        c.execute("SELECT key, value FROM user_profile WHERE key=?", (key,))
+        row = c.fetchone()
+        conn.close()
+        return dict(row) if row else {}
+    c.execute("SELECT key, value FROM user_profile")
+    rows = {r['key']: r['value'] for r in c.fetchall()}
+    conn.close()
+    return rows
+
+
+# ── Biography ─────────────────────────────────────────────────────────────────
+
+def get_biography(domain: str = None) -> dict:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
     query = """
         SELECT domain, outcome, magnitude, confidence_expressed, timestamp
         FROM consequences
@@ -91,7 +298,6 @@ def get_biography(domain: str = None) -> dict:
     if domain:
         query += " AND domain = ?"
         params.append(domain)
-
     c.execute(query, params)
     rows = c.fetchall()
     conn.close()
@@ -106,8 +312,6 @@ def get_biography(domain: str = None) -> dict:
         d, outcome, magnitude, confidence, timestamp_str = row
         ts = datetime.fromisoformat(timestamp_str)
         days_ago = (now - ts).total_seconds() / 86400
-
-        # Recency decay
         decay_weight = math.exp(-0.03 * days_ago)
         magnitude_weight = {"small": 0.5, "medium": 1.0, "large": 2.0}.get(magnitude, 1.0)
         event_weight = decay_weight * magnitude_weight
@@ -153,7 +357,6 @@ def get_biography(domain: str = None) -> dict:
         }
 
     total_decisions = sum(s["total"] for s in domain_stats.values())
-
     return {
         "age": total_decisions,
         "domains": profiles,
@@ -192,26 +395,28 @@ def _build_summary(profiles: dict, total_decisions: int) -> str:
 
 
 def get_behavioral_modifier(domain: str) -> dict:
-    """
-    Returns behavioral modifiers injected into the agent's system prompt
-    before it makes a decision. This is where aging shapes behavior.
-    """
     bio = get_biography(domain)
+    skills = get_skills(domain)
+    skill_notes = ""
+    if skills:
+        top = skills[:3]
+        skill_notes = "Known skills in this domain: " + ", ".join(
+            f"{s['name']} (conf:{s['confidence']:.0%})" for s in top
+        )
 
     if domain not in bio["domains"]:
         return {
             "confidence_modifier": 0.0,
             "risk_posture": "neutral",
             "biography_note": "No prior experience in this domain. Proceeding openly.",
-            "age": 0
+            "age": 0,
+            "skill_notes": skill_notes
         }
 
     p = bio["domains"][domain]
     acc = p["weighted_accuracy"]
     recent_wrongs = p["recent_wrongs"]
-
     confidence_modifier = (acc - 0.5) * 0.6
-
     risk_posture = (
         "conservative" if recent_wrongs >= 3 else
         "bold" if recent_wrongs == 0 and p["total_decisions"] >= 5 else
@@ -222,7 +427,8 @@ def get_behavioral_modifier(domain: str) -> dict:
         "confidence_modifier": round(confidence_modifier, 3),
         "risk_posture": risk_posture,
         "biography_note": p,
-        "age": bio["age"]
+        "age": bio["age"],
+        "skill_notes": skill_notes
     }
 
 

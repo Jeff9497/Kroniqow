@@ -4,401 +4,854 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Kroniqo — Living Agent Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap');
+:root {
+  --bg: #07080c;
+  --surface: #0e1018;
+  --surface2: #131620;
+  --border: #1c2030;
+  --border2: #252b3d;
+  --accent: #5af0a0;
+  --accent-dim: rgba(90,240,160,0.12);
+  --accent2: #ff6b6b;
+  --accent3: #6b8eff;
+  --accent4: #ffb347;
+  --text: #d4dae8;
+  --text2: #7a8299;
+  --correct: #5af0a0;
+  --wrong: #ff6b6b;
+  --pending: #ffb347;
+  --partial: #6b8eff;
+  --bold-color: #5af0a0;
+  --conservative-color: #ff6b6b;
+  --neutral-color: #ffb347;
+}
 
-  :root {
-    --bg: #080a0f;
-    --surface: #0d1117;
-    --border: #1e2530;
-    --accent: #00ff88;
-    --accent2: #ff6b35;
-    --accent3: #7c6af7;
-    --text: #c9d1d9;
-    --muted: #4a5568;
-    --correct: #00ff88;
-    --wrong: #ff4757;
-    --neutral: #ffa502;
-  }
+* { margin:0; padding:0; box-sizing:border-box; }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  min-height: 100vh;
+  font-size: 13px;
+}
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Space Mono', monospace;
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
+/* Grid noise texture */
+body::after {
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:
+    radial-gradient(circle at 20% 50%, rgba(90,240,160,0.03) 0%, transparent 60%),
+    radial-gradient(circle at 80% 20%, rgba(107,142,255,0.03) 0%, transparent 50%);
+  pointer-events:none;
+  z-index:0;
+}
 
-  /* Scanline overlay */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0,255,136,0.015) 2px,
-      rgba(0,255,136,0.015) 4px
-    );
-    pointer-events: none;
-    z-index: 1000;
-  }
+/* ── Header ── */
+header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 0 2rem;
+  height: 56px;
+  border-bottom: 1px solid var(--border);
+  position:sticky;
+  top:0;
+  background: rgba(7,8,12,0.92);
+  backdrop-filter: blur(16px);
+  z-index:100;
+}
 
-  header {
-    border-bottom: 1px solid var(--border);
-    padding: 1.5rem 2rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: sticky;
-    top: 0;
-    background: rgba(8,10,15,0.95);
-    backdrop-filter: blur(10px);
-    z-index: 100;
-  }
+.logo {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-weight: 800;
+  font-size: 1.15rem;
+  letter-spacing: -0.03em;
+  color: var(--accent);
+  display:flex;
+  align-items:center;
+  gap: 0.5rem;
+}
 
-  .logo {
-    font-family: 'Syne', sans-serif;
-    font-weight: 800;
-    font-size: 1.4rem;
-    color: var(--accent);
-    letter-spacing: -0.02em;
-  }
+.logo-dot {
+  width:8px; height:8px;
+  border-radius:50%;
+  background: var(--accent);
+  animation: breathe 3s ease-in-out infinite;
+}
 
-  .logo span { color: var(--text); }
+@keyframes breathe {
+  0%,100%{opacity:1; transform:scale(1)}
+  50%{opacity:0.4; transform:scale(0.7)}
+}
 
-  .status-pill {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.7rem;
-    color: var(--muted);
-    border: 1px solid var(--border);
-    padding: 0.3rem 0.8rem;
-    border-radius: 999px;
-  }
+.header-right { display:flex; align-items:center; gap:1rem; }
 
-  .status-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--accent);
-    animation: pulse 2s infinite;
-  }
+.header-stat {
+  font-size:0.65rem;
+  color: var(--text2);
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+}
 
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
+.header-stat span { color:var(--accent); font-weight:500; }
 
-  main {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 2rem;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto;
-    gap: 1.5rem;
-  }
+.user-badge {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.65rem;
+  color: var(--text2);
+  display:flex;
+  align-items:center;
+  gap:0.4rem;
+}
 
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 1.5rem;
-    position: relative;
-    overflow: hidden;
-  }
+.user-badge .name { color:var(--text); }
 
-  .card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--accent), transparent);
-    opacity: 0.4;
-  }
+.refresh-btn {
+  background:none;
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  cursor:pointer;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.65rem;
+  transition: all 0.15s;
+  letter-spacing:0.05em;
+}
 
-  .card-label {
-    font-size: 0.65rem;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    margin-bottom: 1rem;
-  }
+.refresh-btn:hover { border-color:var(--accent); color:var(--accent); }
 
-  /* Age card — full width */
-  .card-age {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 2rem;
-  }
+/* ── Layout ── */
+.layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: calc(100vh - 56px);
+  position:relative;
+  z-index:1;
+}
 
-  .age-number {
-    font-family: 'Syne', sans-serif;
-    font-size: 4rem;
-    font-weight: 800;
-    color: var(--accent);
-    line-height: 1;
-  }
+/* ── Sidebar ── */
+.sidebar {
+  border-right: 1px solid var(--border);
+  padding: 1.5rem 1rem;
+  display:flex;
+  flex-direction:column;
+  gap:1.5rem;
+}
 
-  .age-label { font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem; }
+.age-block {
+  padding: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius:6px;
+  position:relative;
+  overflow:hidden;
+}
 
-  .biography-text {
-    font-size: 0.8rem;
-    line-height: 1.7;
-    color: var(--text);
-    border-left: 2px solid var(--accent);
-    padding-left: 1rem;
-  }
+.age-block::before {
+  content:'';
+  position:absolute;
+  top:0; left:0; right:0; height:2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+}
 
-  .backend-info {
-    text-align: right;
-    font-size: 0.7rem;
-    color: var(--muted);
-  }
+.age-number {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 3.5rem;
+  font-weight: 800;
+  color: var(--accent);
+  line-height:1;
+  letter-spacing:-0.03em;
+}
 
-  .backend-name {
-    font-size: 1rem;
-    color: var(--accent3);
-    font-weight: 700;
-    display: block;
-    margin-bottom: 0.25rem;
-  }
+.age-label {
+  font-size: 0.6rem;
+  color:var(--text2);
+  text-transform:uppercase;
+  letter-spacing:0.12em;
+  margin-top:0.3rem;
+}
 
-  /* Domains */
-  .domain-list { display: flex; flex-direction: column; gap: 1rem; }
+.posture-badge {
+  display:inline-flex;
+  align-items:center;
+  gap:0.4rem;
+  margin-top:0.75rem;
+  padding: 0.3rem 0.6rem;
+  border-radius:3px;
+  font-size: 0.65rem;
+  font-weight:500;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+}
 
-  .domain-item {}
+.posture-badge.bold { background:rgba(90,240,160,0.1); color:var(--bold-color); border:1px solid rgba(90,240,160,0.3); }
+.posture-badge.conservative { background:rgba(255,107,107,0.1); color:var(--conservative-color); border:1px solid rgba(255,107,107,0.3); }
+.posture-badge.neutral { background:rgba(255,179,71,0.1); color:var(--neutral-color); border:1px solid rgba(255,179,71,0.3); }
 
-  .domain-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.4rem;
-    font-size: 0.75rem;
-  }
+.sidebar-section-label {
+  font-size: 0.58rem;
+  color:var(--text2);
+  text-transform:uppercase;
+  letter-spacing:0.15em;
+  padding: 0 0.25rem;
+  margin-bottom: 0.5rem;
+}
 
-  .domain-name { color: var(--text); }
-  .domain-acc { color: var(--muted); }
+.bio-text {
+  font-size: 0.72rem;
+  line-height:1.7;
+  color: var(--text2);
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius:4px;
+  border-left: 2px solid var(--accent);
+}
 
-  .progress-bar {
-    height: 4px;
-    background: var(--border);
-    border-radius: 2px;
-    overflow: hidden;
-  }
+/* Nav tabs */
+.nav-tabs {
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
 
-  .progress-fill {
-    height: 100%;
-    border-radius: 2px;
-    transition: width 0.8s ease;
-  }
+.nav-tab {
+  display:flex;
+  align-items:center;
+  gap:0.6rem;
+  padding: 0.55rem 0.75rem;
+  border-radius:4px;
+  cursor:pointer;
+  font-size:0.72rem;
+  color:var(--text2);
+  transition: all 0.15s;
+  border:1px solid transparent;
+  background:none;
+  width:100%;
+  text-align:left;
+  font-family: 'DM Mono', monospace;
+}
 
-  .domain-meta {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 0.3rem;
-    font-size: 0.6rem;
-    color: var(--muted);
-  }
+.nav-tab:hover { background:var(--surface); color:var(--text); }
+.nav-tab.active { background:var(--surface2); color:var(--accent); border-color:var(--border2); }
 
-  .calibration-tag {
-    font-size: 0.6rem;
-    padding: 0.1rem 0.4rem;
-    border-radius: 2px;
-    border: 1px solid;
-  }
+.nav-tab .tab-icon { font-size:0.8rem; opacity:0.8; }
+.nav-tab .tab-count {
+  margin-left:auto;
+  background:var(--border2);
+  color:var(--text2);
+  font-size:0.58rem;
+  padding:0.1rem 0.4rem;
+  border-radius:10px;
+}
 
-  .calibration-tag.overconfident { color: var(--wrong); border-color: var(--wrong); }
-  .calibration-tag.underconfident { color: var(--neutral); border-color: var(--neutral); }
-  .calibration-tag.calibrated { color: var(--correct); border-color: var(--correct); }
+.nav-tab.active .tab-count { background:var(--accent-dim); color:var(--accent); }
 
-  /* Recent decisions */
-  .decisions-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-    max-height: 300px;
-    overflow-y: auto;
-  }
+/* ── Main panel ── */
+.main-panel {
+  padding: 1.5rem;
+  display:flex;
+  flex-direction:column;
+  gap:1.5rem;
+  overflow:auto;
+}
 
-  .decisions-list::-webkit-scrollbar { width: 3px; }
-  .decisions-list::-webkit-scrollbar-track { background: var(--border); }
-  .decisions-list::-webkit-scrollbar-thumb { background: var(--muted); }
+.tab-pane { display:none; }
+.tab-pane.active { display:flex; flex-direction:column; gap:1.5rem; }
 
-  .decision-item {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: 0.75rem;
-    align-items: start;
-    font-size: 0.7rem;
-    padding: 0.6rem;
-    border: 1px solid var(--border);
-    border-radius: 2px;
-    transition: border-color 0.2s;
-  }
+/* ── Cards ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius:6px;
+  overflow:hidden;
+}
 
-  .decision-item:hover { border-color: var(--muted); }
+.card-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
 
-  .decision-id { color: var(--muted); font-size: 0.6rem; }
+.card-title {
+  font-size:0.65rem;
+  text-transform:uppercase;
+  letter-spacing:0.12em;
+  color:var(--text2);
+}
 
-  .decision-task {
-    color: var(--text);
-    line-height: 1.4;
-    word-break: break-word;
-  }
+.card-body { padding:1rem; }
 
-  .decision-domain {
-    font-size: 0.6rem;
-    color: var(--muted);
-    margin-top: 0.2rem;
-  }
+/* ── Domain chart ── */
+.domain-grid {
+  display:flex;
+  flex-direction:column;
+  gap:0.9rem;
+}
 
-  .outcome-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    margin-top: 3px;
-    flex-shrink: 0;
-  }
+.domain-row {}
 
-  .outcome-dot.correct { background: var(--correct); }
-  .outcome-dot.wrong { background: var(--wrong); }
-  .outcome-dot.pending { background: var(--neutral); }
+.domain-top {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:0.35rem;
+}
 
-  /* Risk posture */
-  .posture-display {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    min-height: 120px;
-    gap: 0.5rem;
-  }
+.domain-name {
+  font-size:0.72rem;
+  color:var(--text);
+}
 
-  .posture-icon {
-    font-size: 2.5rem;
-    margin-bottom: 0.5rem;
-  }
+.domain-right {
+  display:flex;
+  align-items:center;
+  gap:0.5rem;
+}
 
-  .posture-name {
-    font-family: 'Syne', sans-serif;
-    font-size: 1.2rem;
-    font-weight: 700;
-  }
+.calibration-pill {
+  font-size:0.55rem;
+  padding:0.1rem 0.4rem;
+  border-radius:2px;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  font-weight:500;
+}
 
-  .posture-name.conservative { color: var(--wrong); }
-  .posture-name.bold { color: var(--correct); }
-  .posture-name.neutral { color: var(--neutral); }
+.calibration-pill.overconfident { background:rgba(255,107,107,0.15); color:var(--wrong); }
+.calibration-pill.underconfident { background:rgba(107,142,255,0.15); color:var(--partial); }
+.calibration-pill.calibrated { background:rgba(90,240,160,0.12); color:var(--correct); }
 
-  .posture-desc { font-size: 0.65rem; color: var(--muted); text-align: center; }
+.domain-acc { font-size:0.72rem; color:var(--text); font-weight:500; }
 
-  /* Refresh button */
-  .refresh-btn {
-    position: fixed;
-    bottom: 2rem;
-    right: 2rem;
-    background: var(--accent);
-    color: var(--bg);
-    border: none;
-    padding: 0.75rem 1.5rem;
-    font-family: 'Space Mono', monospace;
-    font-size: 0.7rem;
-    font-weight: 700;
-    cursor: pointer;
-    border-radius: 2px;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    transition: all 0.2s;
-    z-index: 50;
-  }
+.bar-track {
+  height:3px;
+  background:var(--border2);
+  border-radius:2px;
+  overflow:hidden;
+  margin-bottom:0.3rem;
+}
 
-  .refresh-btn:hover { background: #00cc6a; transform: translateY(-2px); }
+.bar-fill {
+  height:100%;
+  border-radius:2px;
+  transition: width 0.6s ease;
+}
 
-  /* Loading state */
-  .loading {
-    color: var(--muted);
-    font-size: 0.75rem;
-    text-align: center;
-    padding: 2rem;
-  }
+.domain-meta {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
 
-  .blink { animation: blink 1s infinite; }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+.domain-count { font-size:0.6rem; color:var(--text2); }
 
-  /* Recent form dots */
-  .form-dots { display: flex; gap: 4px; margin-top: 0.3rem; }
-  .form-dot {
-    width: 6px; height: 6px; border-radius: 50%;
-  }
-  .form-dot.correct { background: var(--correct); }
-  .form-dot.wrong { background: var(--wrong); }
-  .form-dot.partial { background: var(--neutral); }
+.form-dots { display:flex; gap:3px; }
+.form-dot {
+  width:5px; height:5px; border-radius:50%;
+}
+.form-dot.correct { background:var(--correct); }
+.form-dot.wrong { background:var(--wrong); }
+.form-dot.partial { background:var(--partial); }
+.form-dot.pending { background:var(--pending); }
 
-  /* Full width cards */
-  .span-full { grid-column: 1 / -1; }
+/* ── Decisions list ── */
+.decisions-list {
+  display:flex;
+  flex-direction:column;
+  gap:1px;
+  max-height:480px;
+  overflow-y:auto;
+}
 
-  @media (max-width: 768px) {
-    main { grid-template-columns: 1fr; }
-    .card-age { grid-template-columns: 1fr; gap: 1rem; }
-    .age-number { font-size: 3rem; }
-    .backend-info { text-align: left; }
-  }
+.decisions-list::-webkit-scrollbar { width:3px; }
+.decisions-list::-webkit-scrollbar-track { background:transparent; }
+.decisions-list::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+
+.decision-row {
+  display:grid;
+  grid-template-columns: 6px 1fr auto;
+  gap:0.75rem;
+  align-items:start;
+  padding: 0.65rem 0.75rem;
+  border-radius:3px;
+  transition: background 0.12s;
+}
+
+.decision-row:hover { background:var(--surface2); }
+
+.d-indicator {
+  width:4px; height:4px;
+  border-radius:50%;
+  margin-top:5px;
+  flex-shrink:0;
+}
+
+.d-indicator.correct { background:var(--correct); box-shadow:0 0 4px var(--correct); }
+.d-indicator.wrong { background:var(--wrong); box-shadow:0 0 4px var(--wrong); }
+.d-indicator.pending { background:var(--pending); }
+.d-indicator.partial { background:var(--partial); }
+
+.d-task {
+  font-size:0.72rem;
+  color:var(--text);
+  line-height:1.5;
+  word-break:break-word;
+}
+
+.d-meta {
+  font-size:0.58rem;
+  color:var(--text2);
+  margin-top:0.2rem;
+  display:flex;
+  gap:0.5rem;
+}
+
+.d-domain-tag {
+  background:var(--border2);
+  padding:0.05rem 0.3rem;
+  border-radius:2px;
+  color:var(--text2);
+}
+
+.d-id {
+  font-size:0.6rem;
+  color:var(--text2);
+  white-space:nowrap;
+  padding-top:2px;
+}
+
+/* ── Skills ── */
+.skills-grid {
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px,1fr));
+  gap:0.75rem;
+}
+
+.skill-card {
+  background:var(--surface2);
+  border:1px solid var(--border2);
+  border-radius:5px;
+  padding:0.9rem;
+  transition:border-color 0.15s;
+}
+
+.skill-card:hover { border-color:var(--border2); }
+
+.skill-top {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  margin-bottom:0.5rem;
+}
+
+.skill-name {
+  font-size:0.75rem;
+  color:var(--text);
+  font-weight:500;
+}
+
+.skill-conf {
+  font-size:0.65rem;
+  color:var(--accent);
+  font-weight:500;
+}
+
+.skill-domain-tag {
+  display:inline-block;
+  font-size:0.55rem;
+  color:var(--text2);
+  background:var(--border);
+  padding:0.1rem 0.35rem;
+  border-radius:2px;
+  margin-bottom:0.4rem;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+}
+
+.skill-desc {
+  font-size:0.68rem;
+  color:var(--text2);
+  line-height:1.5;
+  margin-bottom:0.5rem;
+}
+
+.skill-stats {
+  display:flex;
+  gap:0.75rem;
+  font-size:0.58rem;
+  color:var(--text2);
+}
+
+.skill-stats span { color:var(--text); }
+
+.skill-bar-track {
+  height:2px;
+  background:var(--border);
+  border-radius:1px;
+  margin-top:0.5rem;
+  overflow:hidden;
+}
+
+.skill-bar-fill {
+  height:100%;
+  background:var(--accent);
+  border-radius:1px;
+  transition:width 0.5s ease;
+}
+
+/* ── Cron ── */
+.cron-list {
+  display:flex;
+  flex-direction:column;
+  gap:1px;
+}
+
+.cron-row {
+  display:grid;
+  grid-template-columns: 8px 1fr auto auto;
+  gap:0.75rem;
+  align-items:center;
+  padding:0.65rem 0.75rem;
+  border-radius:3px;
+}
+
+.cron-row:hover { background:var(--surface2); }
+
+.cron-dot {
+  width:6px; height:6px; border-radius:50%;
+}
+
+.cron-dot.on { background:var(--correct); }
+.cron-dot.off { background:var(--text2); }
+
+.cron-task { font-size:0.72rem; color:var(--text); }
+.cron-meta { font-size:0.6rem; color:var(--text2); margin-top:0.15rem; }
+
+.cron-interval {
+  font-size:0.65rem;
+  color:var(--text2);
+  white-space:nowrap;
+}
+
+.cron-runs {
+  font-size:0.6rem;
+  color:var(--text2);
+  white-space:nowrap;
+}
+
+/* ── Empty states ── */
+.empty {
+  text-align:center;
+  padding:2.5rem;
+  color:var(--text2);
+  font-size:0.72rem;
+  line-height:2;
+}
+
+.empty-icon { font-size:1.5rem; margin-bottom:0.5rem; opacity:0.4; }
+
+/* ── Stats row ── */
+.stats-row {
+  display:grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap:1rem;
+}
+
+.stat-card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:5px;
+  padding:1rem;
+  text-align:center;
+}
+
+.stat-value {
+  font-family:'Bricolage Grotesque', sans-serif;
+  font-size:2rem;
+  font-weight:700;
+  color:var(--accent);
+  line-height:1;
+  margin-bottom:0.3rem;
+}
+
+.stat-label {
+  font-size:0.58rem;
+  color:var(--text2);
+  text-transform:uppercase;
+  letter-spacing:0.1em;
+}
+
+/* ── Loading ── */
+.loading-state {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:200px;
+  color:var(--text2);
+  font-size:0.75rem;
+  gap:0.5rem;
+}
+
+.spin {
+  display:inline-block;
+  animation:spin 0.8s linear infinite;
+}
+
+@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+/* ── Last updated ── */
+.last-updated {
+  font-size:0.6rem;
+  color:var(--text2);
+  text-align:right;
+  padding:0.5rem 0;
+}
+
+/* ── Offline state ── */
+.offline-card {
+  text-align:center;
+  padding:3rem;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:6px;
+}
+
+.offline-title {
+  font-family:'Bricolage Grotesque', sans-serif;
+  font-size:1.1rem;
+  color:var(--wrong);
+  margin-bottom:0.75rem;
+}
+
+.offline-cmd {
+  display:inline-block;
+  background:var(--bg);
+  border:1px solid var(--border2);
+  border-radius:3px;
+  padding:0.75rem 1.25rem;
+  font-size:0.72rem;
+  color:var(--accent);
+  margin-top:0.75rem;
+  letter-spacing:0.05em;
+}
+
+@media (max-width:768px) {
+  .layout { grid-template-columns:1fr; }
+  .sidebar { border-right:none; border-bottom:1px solid var(--border); }
+  .stats-row { grid-template-columns:repeat(2,1fr); }
+}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">Kroniq<span>o</span></div>
-  <div class="status-pill">
-    <div class="status-dot"></div>
-    <span id="status-text">loading...</span>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    Kroniqo
+  </div>
+  <div class="header-right">
+    <div class="header-stat">Age <span id="h-age">—</span></div>
+    <div class="header-stat">Domains <span id="h-domains">—</span></div>
+    <div class="header-stat">Skills <span id="h-skills">—</span></div>
+    <div id="user-badge" class="user-badge" style="display:none">
+      <span>👤</span><span class="name" id="h-name"></span>
+    </div>
+    <button class="refresh-btn" onclick="loadAll()">↺ Refresh</button>
   </div>
 </header>
 
-<main id="main">
-  <div class="loading span-full">
-    <span class="blink">█</span> connecting to Kroniqo...
-  </div>
-</main>
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="age-block">
+      <div class="age-number" id="s-age">0</div>
+      <div class="age-label">consequential decisions</div>
+      <div id="s-posture" class="posture-badge neutral">◈ Neutral</div>
+    </div>
 
-<button class="refresh-btn" onclick="loadData()">↺ Refresh</button>
+    <div>
+      <div class="sidebar-section-label">Biography</div>
+      <div class="bio-text" id="s-bio">Loading…</div>
+    </div>
+
+    <div>
+      <div class="sidebar-section-label">Navigate</div>
+      <div class="nav-tabs">
+        <button class="nav-tab active" onclick="switchTab('overview')" id="tab-overview">
+          <span class="tab-icon">◉</span> Overview
+        </button>
+        <button class="nav-tab" onclick="switchTab('domains')" id="tab-domains">
+          <span class="tab-icon">◈</span> Domains
+          <span class="tab-count" id="tc-domains">0</span>
+        </button>
+        <button class="nav-tab" onclick="switchTab('decisions')" id="tab-decisions">
+          <span class="tab-icon">◎</span> Decisions
+          <span class="tab-count" id="tc-decisions">0</span>
+        </button>
+        <button class="nav-tab" onclick="switchTab('skills')" id="tab-skills">
+          <span class="tab-icon">◇</span> Skills
+          <span class="tab-count" id="tc-skills">0</span>
+        </button>
+        <button class="nav-tab" onclick="switchTab('cron')" id="tab-cron">
+          <span class="tab-icon">⧗</span> Cron Jobs
+          <span class="tab-count" id="tc-cron">0</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main-panel">
+
+    <!-- OVERVIEW tab -->
+    <div class="tab-pane active" id="pane-overview">
+      <div class="stats-row" id="stats-row">
+        <div class="stat-card">
+          <div class="stat-value" id="stat-age">0</div>
+          <div class="stat-label">Total Decisions</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-acc">—</div>
+          <div class="stat-label">Overall Accuracy</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-skills">0</div>
+          <div class="stat-label">Learned Skills</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-cron">0</div>
+          <div class="stat-label">Scheduled Tasks</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Domain Performance</div>
+        </div>
+        <div class="card-body">
+          <div class="domain-grid" id="overview-domains">
+            <div class="loading-state"><span class="spin">⟳</span> loading…</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Recent Decisions</div>
+        </div>
+        <div class="card-body" style="padding:0.25rem">
+          <div class="decisions-list" id="overview-decisions">
+            <div class="loading-state"><span class="spin">⟳</span> loading…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DOMAINS tab -->
+    <div class="tab-pane" id="pane-domains">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">All Domains</div>
+        </div>
+        <div class="card-body">
+          <div class="domain-grid" id="domains-full">
+            <div class="loading-state"><span class="spin">⟳</span> loading…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DECISIONS tab -->
+    <div class="tab-pane" id="pane-decisions">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Decision Log</div>
+          <div style="font-size:0.6rem; color:var(--text2)">● correct &nbsp; ● wrong &nbsp; ● pending</div>
+        </div>
+        <div class="card-body" style="padding:0.25rem">
+          <div class="decisions-list" style="max-height:600px" id="decisions-full">
+            <div class="loading-state"><span class="spin">⟳</span> loading…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SKILLS tab -->
+    <div class="tab-pane" id="pane-skills">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Learned Skills</div>
+          <div style="font-size:0.6rem; color:var(--text2)">Kroniqo's procedural knowledge — aged by consequence</div>
+        </div>
+        <div class="card-body">
+          <div class="skills-grid" id="skills-grid">
+            <div class="loading-state"><span class="spin">⟳</span> loading…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CRON tab -->
+    <div class="tab-pane" id="pane-cron">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Scheduled Tasks</div>
+          <div style="font-size:0.6rem; color:var(--text2)">cron add &lt;interval&gt; &lt;task&gt;</div>
+        </div>
+        <div class="card-body" style="padding:0.25rem">
+          <div class="cron-list" id="cron-list">
+            <div class="loading-state"><span class="spin">⟳</span> loading…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="last-updated" id="last-updated"></div>
+  </main>
+</div>
 
 <script>
-// ── Data fetching ─────────────────────────────────────────────────────────────
-// The UI reads from api.json (generated by api_server.py)
-// Falls back to mock data if server not running
+// ── Globals ────────────────────────────────────────────────────────────────
+let bioData = null, decisionsData = [], skillsData = [], cronData = [];
+const API = 'http://localhost:7842';
 
-async function fetchBiography() {
-  try {
-    const r = await fetch('http://localhost:7842/api/biography', {
-      signal: AbortSignal.timeout(2000)
-    });
-    return await r.json();
-  } catch {
-    return null;
-  }
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('pane-' + name).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
 }
 
-async function fetchDecisions() {
+// ── Fetch ──────────────────────────────────────────────────────────────────
+async function fetchJSON(path) {
   try {
-    const r = await fetch('http://localhost:7842/api/decisions', {
-      signal: AbortSignal.timeout(2000)
-    });
+    const r = await fetch(API + path, { signal: AbortSignal.timeout(3000) });
     return await r.json();
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────
+function pct(n) { return Math.round(n * 100) + '%'; }
+
+function accColor(acc) {
+  if (acc >= 0.75) return 'var(--correct)';
+  if (acc >= 0.5)  return 'var(--pending)';
+  return 'var(--wrong)';
+}
+
 function getPosture(domains) {
-  // Overall posture = worst domain
   let hasConservative = false, hasBold = false;
   for (const d of Object.values(domains)) {
     if (d.recent_wrongs >= 3) hasConservative = true;
@@ -410,152 +863,231 @@ function getPosture(domains) {
 }
 
 function postureIcon(p) {
-  return { conservative: '⚠', bold: '⚡', neutral: '◈' }[p];
+  return { bold: '⚡ Bold', conservative: '⚠ Conservative', neutral: '◈ Neutral' }[p];
 }
 
-function postureDesc(p) {
-  return {
-    conservative: 'Recent failures detected. Kroniqo is hedging.',
-    bold: 'Strong recent form. Kroniqo is decisive.',
-    neutral: 'Balanced. No strong signals either way.'
-  }[p];
+function intervalLabel(secs) {
+  if (secs < 60) return secs + 's';
+  if (secs < 3600) return (secs/60|0) + 'm';
+  if (secs < 86400) return (secs/3600|0) + 'h';
+  return (secs/86400|0) + 'd';
 }
 
-function accuracyColor(acc) {
-  if (acc >= 0.75) return 'var(--correct)';
-  if (acc >= 0.5) return 'var(--neutral)';
-  return 'var(--wrong)';
+function timeAgo(isoStr) {
+  if (!isoStr) return '';
+  const diff = Date.now() - new Date(isoStr + 'Z').getTime();
+  const m = Math.floor(diff/60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + 'm ago';
+  const h = Math.floor(m/60);
+  if (h < 24) return h + 'h ago';
+  return Math.floor(h/24) + 'd ago';
 }
 
-function renderDomain(name, d) {
+// ── Render domain row ─────────────────────────────────────────────────────
+function renderDomainRow(name, d) {
   const acc = d.weighted_accuracy;
-  const pct = Math.round(acc * 100);
+  const pctVal = Math.round(acc * 100);
   const formDots = (d.recent_form || []).map(o =>
     `<div class="form-dot ${o}"></div>`
   ).join('');
-
   return `
-    <div class="domain-item">
-      <div class="domain-header">
+    <div class="domain-row">
+      <div class="domain-top">
         <span class="domain-name">[${name}]</span>
-        <div style="display:flex;align-items:center;gap:0.5rem">
-          <span class="calibration-tag ${d.calibration}">${d.calibration}</span>
-          <span class="domain-acc">${pct}%</span>
+        <div class="domain-right">
+          <span class="calibration-pill ${d.calibration}">${d.calibration}</span>
+          <span class="domain-acc">${pctVal}%</span>
         </div>
       </div>
-      <div class="progress-bar">
-        <div class="progress-fill" style="width:${pct}%;background:${accuracyColor(acc)}"></div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${pctVal}%;background:${accColor(acc)}"></div>
       </div>
       <div class="domain-meta">
-        <span>${d.total_decisions} decision${d.total_decisions !== 1 ? 's' : ''}</span>
+        <span class="domain-count">${d.total_decisions} decision${d.total_decisions !== 1 ? 's' : ''}</span>
         <div class="form-dots">${formDots}</div>
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
-function renderDecision(d) {
+// ── Render decision row ───────────────────────────────────────────────────
+function renderDecisionRow(d) {
   const outcome = d.outcome || 'pending';
-  const task = d.task.length > 80 ? d.task.slice(0, 80) + '…' : d.task;
-  const conf = d.confidence_expressed ? (d.confidence_expressed * 100).toFixed(0) + '%' : '?';
+  const task = d.task.length > 90 ? d.task.slice(0, 90) + '…' : d.task;
+  const conf = d.confidence_expressed ? pct(d.confidence_expressed) : '?';
+  const ago = timeAgo(d.timestamp);
   return `
-    <div class="decision-item">
-      <div class="outcome-dot ${outcome}" title="${outcome}"></div>
+    <div class="decision-row">
+      <div class="d-indicator ${outcome}"></div>
       <div>
-        <div class="decision-task">${task}</div>
-        <div class="decision-domain">[${d.domain}] · ${conf} confidence</div>
-      </div>
-      <div class="decision-id">#${d.id}</div>
-    </div>
-  `;
-}
-
-async function loadData() {
-  const main = document.getElementById('main');
-  document.getElementById('status-text').textContent = 'refreshing...';
-
-  const bio = await fetchBiography();
-  const decisions = await fetchDecisions();
-
-  if (!bio) {
-    // Server not running — show how to start it
-    document.getElementById('status-text').textContent = 'server offline';
-    main.innerHTML = `
-      <div class="card span-full" style="text-align:center;padding:3rem">
-        <div style="color:var(--accent);font-size:1.2rem;margin-bottom:1rem">Start the API server</div>
-        <div style="color:var(--muted);font-size:0.75rem;line-height:2">
-          cd Kroniqo<br>
-          python kroniqo-ui/api_server.py<br><br>
-          Then refresh this page.
+        <div class="d-task">${task}</div>
+        <div class="d-meta">
+          <span class="d-domain-tag">${d.domain}</span>
+          <span>${conf} conf</span>
+          <span>${ago}</span>
+          ${d.notes ? `<span title="${d.notes}">📝</span>` : ''}
         </div>
       </div>
-    `;
+      <div class="d-id">#${d.id}</div>
+    </div>`;
+}
+
+// ── Render skill card ─────────────────────────────────────────────────────
+function renderSkillCard(sk) {
+  const confPct = Math.round(sk.confidence * 100);
+  const stepsHtml = (sk.steps || []).slice(0, 3).map((s, i) =>
+    `<div style="font-size:0.62rem;color:var(--text2);margin-top:0.25rem">${i+1}. ${s.slice(0,60)}${s.length>60?'…':''}</div>`
+  ).join('');
+  return `
+    <div class="skill-card">
+      <div class="skill-top">
+        <div class="skill-name">${sk.name}</div>
+        <div class="skill-conf">${confPct}%</div>
+      </div>
+      <div class="skill-domain-tag">${sk.domain}</div>
+      <div class="skill-desc">${sk.description}</div>
+      ${stepsHtml}
+      <div class="skill-bar-track">
+        <div class="skill-bar-fill" style="width:${confPct}%"></div>
+      </div>
+      <div class="skill-stats" style="margin-top:0.5rem">
+        Used <span>${sk.times_used}x</span> &nbsp;
+        Won <span>${sk.times_succeeded}</span> &nbsp;
+        Lost <span>${sk.times_failed}</span>
+      </div>
+    </div>`;
+}
+
+// ── Render cron row ───────────────────────────────────────────────────────
+function renderCronRow(j) {
+  const status = j.enabled ? 'on' : 'off';
+  const interval = intervalLabel(j.interval_seconds);
+  const lastRun = j.last_run ? timeAgo(j.last_run) : 'never';
+  return `
+    <div class="cron-row">
+      <div class="cron-dot ${status}"></div>
+      <div>
+        <div class="cron-task">${j.task.slice(0, 70)}${j.task.length>70?'…':''}</div>
+        <div class="cron-meta">every ${interval} · last: ${lastRun} · domain: ${j.domain}</div>
+      </div>
+      <div class="cron-interval">every ${interval}</div>
+      <div class="cron-runs">${j.run_count}x</div>
+    </div>`;
+}
+
+// ── Main render ────────────────────────────────────────────────────────────
+function renderAll() {
+  if (!bioData) {
+    document.getElementById('pane-overview').innerHTML = `
+      <div class="offline-card">
+        <div class="offline-title">Server Offline</div>
+        <div style="font-size:0.72rem;color:var(--text2)">Start the API server to see Kroniqo's biography</div>
+        <div class="offline-cmd">python kroniqo-ui/api_server.py</div>
+      </div>`;
     return;
   }
 
-  document.getElementById('status-text').textContent = `age: ${bio.age} decisions`;
-
-  const domains = bio.domains || {};
+  const domains = bioData.domains || {};
   const posture = Object.keys(domains).length > 0 ? getPosture(domains) : 'neutral';
 
-  const domainHTML = Object.keys(domains).length > 0
-    ? Object.entries(domains).map(([n, d]) => renderDomain(n, d)).join('')
-    : '<div style="color:var(--muted);font-size:0.75rem">No decisions recorded yet.</div>';
+  // Sidebar
+  document.getElementById('s-age').textContent = bioData.age;
+  document.getElementById('s-bio').textContent = bioData.summary || 'No experience yet.';
+  const pb = document.getElementById('s-posture');
+  pb.className = `posture-badge ${posture}`;
+  pb.textContent = postureIcon(posture);
 
-  const decisionsHTML = decisions && decisions.length > 0
-    ? [...decisions].reverse().slice(0, 20).map(renderDecision).join('')
-    : '<div style="color:var(--muted);font-size:0.75rem;padding:1rem">No decisions yet.</div>';
+  // Header stats
+  document.getElementById('h-age').textContent = bioData.age;
+  document.getElementById('h-domains').textContent = Object.keys(domains).length;
+  document.getElementById('h-skills').textContent = skillsData.length;
 
-  // Overall accuracy
-  let totalCorrect = 0, totalDecisions = 0;
+  // Tab counts
+  document.getElementById('tc-domains').textContent = Object.keys(domains).length;
+  document.getElementById('tc-decisions').textContent = decisionsData.length;
+  document.getElementById('tc-skills').textContent = skillsData.length;
+  document.getElementById('tc-cron').textContent = cronData.length;
+
+  // Stats row
+  let totalCorrect = 0, totalDec = 0;
   for (const d of Object.values(domains)) {
     totalCorrect += Math.round(d.raw_accuracy * d.total_decisions);
-    totalDecisions += d.total_decisions;
+    totalDec += d.total_decisions;
   }
-  const overallAcc = totalDecisions > 0 ? Math.round((totalCorrect / totalDecisions) * 100) : 0;
+  const overallAcc = totalDec > 0 ? Math.round(totalCorrect / totalDec * 100) + '%' : '—';
+  document.getElementById('stat-age').textContent = bioData.age;
+  document.getElementById('stat-acc').textContent = overallAcc;
+  document.getElementById('stat-skills').textContent = skillsData.length;
+  document.getElementById('stat-cron').textContent = cronData.filter(j => j.enabled).length;
 
-  main.innerHTML = `
-    <!-- Age + Biography -->
-    <div class="card card-age">
-      <div>
-        <div class="age-number">${bio.age}</div>
-        <div class="age-label">consequential decisions</div>
-      </div>
-      <div class="biography-text">${bio.summary}</div>
-      <div class="backend-info">
-        <span class="backend-name">${(bio.backend || 'GROQ').toUpperCase()}</span>
-        <span>${overallAcc}% overall accuracy</span><br>
-        <span style="margin-top:0.25rem;display:block">${Object.keys(domains).length} active domains</span>
-      </div>
-    </div>
+  // Domains
+  const domainHTML = Object.keys(domains).length
+    ? Object.entries(domains).map(([n, d]) => renderDomainRow(n, d)).join('')
+    : '<div class="empty"><div class="empty-icon">◈</div>No decisions recorded yet.<br>Ask Kroniqo something to see domain tracking.</div>';
 
-    <!-- Domains -->
-    <div class="card">
-      <div class="card-label">Domain Performance</div>
-      <div class="domain-list">${domainHTML}</div>
-    </div>
+  document.getElementById('overview-domains').innerHTML = domainHTML;
+  document.getElementById('domains-full').innerHTML = domainHTML;
 
-    <!-- Risk Posture -->
-    <div class="card">
-      <div class="card-label">Current Posture</div>
-      <div class="posture-display">
-        <div class="posture-icon">${postureIcon(posture)}</div>
-        <div class="posture-name ${posture}">${posture.toUpperCase()}</div>
-        <div class="posture-desc">${postureDesc(posture)}</div>
-      </div>
-    </div>
+  // Decisions
+  const decHTML = decisionsData.length
+    ? decisionsData.slice(0, 10).map(renderDecisionRow).join('')
+    : '<div class="empty"><div class="empty-icon">◎</div>No decisions yet.</div>';
+  const decFullHTML = decisionsData.length
+    ? decisionsData.map(renderDecisionRow).join('')
+    : '<div class="empty"><div class="empty-icon">◎</div>No decisions yet.</div>';
 
-    <!-- Recent Decisions -->
-    <div class="card span-full">
-      <div class="card-label">Recent Decisions</div>
-      <div class="decisions-list">${decisionsHTML}</div>
-    </div>
-  `;
+  document.getElementById('overview-decisions').innerHTML = decHTML;
+  document.getElementById('decisions-full').innerHTML = decFullHTML;
+
+  // Skills
+  const skillsHTML = skillsData.length
+    ? skillsData.map(renderSkillCard).join('')
+    : '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">◇</div>No skills saved yet.<br><span style="font-size:0.65rem">skill save &lt;name&gt; &lt;domain&gt; &lt;desc&gt; -- step1 | step2</span></div>';
+  document.getElementById('skills-grid').innerHTML = skillsHTML;
+
+  // Cron
+  const cronHTML = cronData.length
+    ? cronData.map(renderCronRow).join('')
+    : '<div class="empty"><div class="empty-icon">⧗</div>No scheduled tasks.<br><span style="font-size:0.65rem">cron add 2h &lt;task description&gt;</span></div>';
+  document.getElementById('cron-list').innerHTML = cronHTML;
+
+  // User badge
+  if (bioData.userName) {
+    document.getElementById('user-badge').style.display = 'flex';
+    document.getElementById('h-name').textContent = bioData.userName;
+  }
+
+  // Last updated
+  document.getElementById('last-updated').textContent =
+    'Last updated: ' + new Date().toLocaleTimeString();
 }
 
-// Auto-refresh every 10s
-loadData();
-setInterval(loadData, 10000);
+// ── Load all data ──────────────────────────────────────────────────────────
+async function loadAll() {
+  const [bio, decisions, skills, cron, profile] = await Promise.all([
+    fetchJSON('/api/biography'),
+    fetchJSON('/api/decisions'),
+    fetchJSON('/api/skills'),
+    fetchJSON('/api/cron'),
+    fetchJSON('/api/profile'),
+  ]);
+
+  bioData = bio;
+  decisionsData = Array.isArray(decisions) ? decisions : [];
+  skillsData = Array.isArray(skills) ? skills : [];
+  cronData = Array.isArray(cron) ? cron : [];
+
+  // Inject user name into bio for rendering
+  if (bioData && profile && profile.name) {
+    bioData.userName = profile.name;
+  }
+
+  renderAll();
+}
+
+// Auto-refresh every 8s
+loadAll();
+setInterval(loadAll, 8000);
 </script>
 </body>
 </html>
