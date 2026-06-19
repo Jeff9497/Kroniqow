@@ -57,18 +57,41 @@ def get_decisions(limit: int = 100) -> list:
 
 
 def get_status() -> dict:
-    bio = get_biography()
-    skills = get_skills()
-    cron   = list_cron_jobs()
+    bio     = get_biography()
+    skills  = get_skills()
+    cron    = list_cron_jobs()
     profile = get_user_profile()
 
-    active_backend = (
-        "groq"     if os.environ.get("GROQ_API_KEY")     else
-        "gemini"   if os.environ.get("GEMINI_API_KEY")   else
-        "cerebras" if os.environ.get("CEREBRAS_API_KEY") else
-        "claude"   if os.environ.get("ANTHROPIC_API_KEY") else
-        "unknown"
+    # Backends — check which keys are present
+    backends = {}
+    for name, env_key in [
+        ("groq",     "GROQ_API_KEY"),
+        ("gemini",   "GEMINI_API_KEY"),
+        ("cerebras", "CEREBRAS_API_KEY"),
+        ("claude",   "ANTHROPIC_API_KEY"),
+        ("mistral",  "MISTRAL_API_KEY"),
+    ]:
+        backends[name] = bool(os.environ.get(env_key, "").strip())
+
+    active_backend = next(
+        (n for n, ok in backends.items() if ok), "none"
     )
+
+    # Channels
+    tg_token   = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    tg_chat_id = os.environ.get("TELEGRAM_CHAT_ID",   "").strip()
+
+    channels = {
+        "telegram": {
+            "configured": bool(tg_token),
+            "linked":     bool(tg_token and tg_chat_id),
+            "bot_token":  bool(tg_token),
+            "chat_id":    bool(tg_chat_id),
+            # Expose partial token for display (last 6 chars only — safe)
+            "token_hint": ("…" + tg_token[-6:]) if tg_token else "",
+            "chat_hint":  tg_chat_id if tg_chat_id else "",
+        },
+    }
 
     return {
         "age":          bio["age"],
@@ -76,8 +99,10 @@ def get_status() -> dict:
         "skills":       len(skills),
         "cron_active":  sum(1 for j in cron if j["enabled"]),
         "backend":      active_backend,
-        "telegram":     bool(os.environ.get("TELEGRAM_BOT_TOKEN")),
+        "backends":     backends,
+        "channels":     channels,
         "user_name":    profile.get("name", ""),
+        "search":       True,  # DuckDuckGo always available
     }
 
 
@@ -106,7 +131,53 @@ class KroniqoHandler(SimpleHTTPRequestHandler):
         else:
             super().do_GET()
 
-    def _json(self, data, status=200):
+    def do_POST(self):
+        path = urlparse(self.path).path
+        length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(length)
+
+        if path == '/api/channels/configure':
+            try:
+                data = json.loads(body)
+                channel = data.get('channel', '')
+                changes = []
+
+                if channel == 'telegram':
+                    token   = data.get('bot_token', '').strip()
+                    chat_id = data.get('chat_id', '').strip()
+
+                    env_path = ROOT / '.env'
+                    cfg = {}
+                    if env_path.exists():
+                        for line in env_path.read_text().splitlines():
+                            line = line.strip()
+                            if line and not line.startswith('#') and '=' in line:
+                                k, v = line.split('=', 1)
+                                cfg[k.strip()] = v.strip()
+
+                    if token:
+                        cfg['TELEGRAM_BOT_TOKEN'] = token
+                        os.environ['TELEGRAM_BOT_TOKEN'] = token
+                        changes.append('TELEGRAM_BOT_TOKEN saved')
+                    if chat_id:
+                        cfg['TELEGRAM_CHAT_ID'] = chat_id
+                        os.environ['TELEGRAM_CHAT_ID'] = chat_id
+                        changes.append('TELEGRAM_CHAT_ID saved')
+
+                    if changes:
+                        env_path.write_text(
+                            '# Kroniqo config\n\n' +
+                            '\n'.join(f'{k}={v}' for k, v in cfg.items())
+                        )
+
+                self._json({'ok': True, 'changes': changes})
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, status=400)
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+
         body = json.dumps(data, indent=2, default=str).encode()
         self.send_response(status)
         self.send_header('Content-Type',  'application/json')

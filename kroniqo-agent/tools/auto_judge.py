@@ -28,11 +28,19 @@ try:
 except ImportError:
     WEB_SEARCH_AVAILABLE = False
 
-GROQ_KEY   = os.environ.get("GROQ_API_KEY", "")
-GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
 GROQ_URL   = "https://api.groq.com/openai/v1/chat/completions"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-JUDGE_MODEL = "llama-3.3-70b-versatile"
+
+# JUDGE_MODEL: override via env var KRONIQO_JUDGE_MODEL
+# Default: llama-3.3-70b-versatile on Groq.
+# For a truly separate model, set KRONIQO_JUDGE_BACKEND=gemini and it will
+# use Gemini as judge regardless of active agent backend.
+JUDGE_MODEL   = os.environ.get("KRONIQO_JUDGE_MODEL",   "llama-3.3-70b-versatile")
+JUDGE_BACKEND = os.environ.get("KRONIQO_JUDGE_BACKEND", "auto")
+# JUDGE_BACKEND values:
+#   "auto"   — prefer Gemini if key exists (truly separate from Groq), else fall to Groq
+#   "groq"   — always use Groq
+#   "gemini" — always use Gemini
 
 
 def judge_math(question: str, answer_text: str) -> tuple[str, str]:
@@ -108,32 +116,46 @@ REASON: one sentence explanation with the correct answer
 Be strict. Partial credit = wrong. Only respond with VERDICT and REASON lines."""
 
     # Refresh keys from env (may have been set after module import)
-    groq_key = os.environ.get("GROQ_API_KEY", "")
+    groq_key   = os.environ.get("GROQ_API_KEY", "")
     gemini_key = os.environ.get("GEMINI_API_KEY", "")
+    judge_backend = os.environ.get("KRONIQO_JUDGE_BACKEND", JUDGE_BACKEND)
+    judge_model   = os.environ.get("KRONIQO_JUDGE_MODEL",   JUDGE_MODEL)
 
-    if groq_key:
-        try:
-            r = requests.post(GROQ_URL,
-                headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
-                json={"model": JUDGE_MODEL, "max_tokens": 150, "temperature": 0.1,
-                      "messages": [{"role": "user", "content": prompt}]},
-                timeout=20)
-            r.raise_for_status()
-            return parse_judge_response(r.json()["choices"][0]["message"]["content"])
-        except Exception as e:
-            print(f"  [Judge] Groq failed: {e}")
+    # Build priority order — "auto" prefers Gemini (truly separate from Groq agent)
+    if judge_backend == "gemini":
+        order = ["gemini", "groq"]
+    elif judge_backend == "groq":
+        order = ["groq", "gemini"]
+    else:  # auto — prefer whichever is NOT the active agent backend
+        active = os.environ.get("KRONIQO_BACKEND", "groq")
+        order  = ["gemini", "groq"] if active == "groq" else ["groq", "gemini"]
 
-    if gemini_key:
-        try:
-            r = requests.post(GEMINI_URL,
-                headers={"Authorization": f"Bearer {gemini_key}", "Content-Type": "application/json"},
-                json={"model": "gemini-2.0-flash", "max_tokens": 150, "temperature": 0.1,
-                      "messages": [{"role": "user", "content": prompt}]},
-                timeout=20)
-            r.raise_for_status()
-            return parse_judge_response(r.json()["choices"][0]["message"]["content"])
-        except Exception as e:
-            print(f"  [Judge] Gemini failed: {e}")
+    for backend in order:
+        if backend == "groq" and groq_key:
+            try:
+                print(f"  [Judge] Using Groq/{judge_model}")
+                r = requests.post(GROQ_URL,
+                    headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+                    json={"model": judge_model, "max_tokens": 150, "temperature": 0.1,
+                          "messages": [{"role": "user", "content": prompt}]},
+                    timeout=20)
+                r.raise_for_status()
+                return parse_judge_response(r.json()["choices"][0]["message"]["content"])
+            except Exception as e:
+                print(f"  [Judge] Groq failed: {e}")
+
+        elif backend == "gemini" and gemini_key:
+            try:
+                print(f"  [Judge] Using Gemini/gemini-2.0-flash (separate backend)")
+                r = requests.post(GEMINI_URL,
+                    headers={"Authorization": f"Bearer {gemini_key}", "Content-Type": "application/json"},
+                    json={"model": "gemini-2.0-flash", "max_tokens": 150, "temperature": 0.1,
+                          "messages": [{"role": "user", "content": prompt}]},
+                    timeout=20)
+                r.raise_for_status()
+                return parse_judge_response(r.json()["choices"][0]["message"]["content"])
+            except Exception as e:
+                print(f"  [Judge] Gemini failed: {e}")
 
     return "pending", "No judge available"
 

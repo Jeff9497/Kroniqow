@@ -646,6 +646,160 @@ header {
   letter-spacing:0.05em;
 }
 
+/* ── Channels ── */
+.ch-badge {
+  font-size: 0.58rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 500;
+}
+.ch-badge-ok   { background: rgba(90,240,160,0.12); color: var(--correct); border: 1px solid rgba(90,240,160,0.3); }
+.ch-badge-warn { background: rgba(255,179,71,0.12); color: var(--pending); border: 1px solid rgba(255,179,71,0.3); }
+.ch-badge-off  { background: var(--surface2); color: var(--text2); border: 1px solid var(--border2); }
+.ch-badge-soon { background: var(--surface2); color: var(--text2); border: 1px solid var(--border2); font-style:italic; }
+
+.ch-status-row {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1.25rem;
+  padding: 0.9rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+.ch-status-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.ch-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ch-dot.ok  { background: var(--correct); box-shadow: 0 0 6px var(--correct); }
+.ch-dot.off { background: var(--text2); }
+
+.ch-label { font-size: 0.65rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; }
+.ch-hint  { font-size: 0.72rem; color: var(--text); margin-top: 0.15rem; }
+
+.ch-form {
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  padding: 1rem;
+  background: var(--surface2);
+  margin-bottom: 1rem;
+}
+
+.ch-form-title {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text2);
+  margin-bottom: 0.85rem;
+}
+
+.ch-field { margin-bottom: 0.85rem; }
+
+.ch-field-label {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.35rem;
+}
+
+.ch-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  padding: 0.55rem 0.75rem;
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.ch-input:focus { border-color: var(--accent); }
+.ch-input::placeholder { color: var(--text2); opacity: 0.5; }
+
+.ch-field-hint {
+  font-size: 0.6rem;
+  color: var(--text2);
+  margin-top: 0.3rem;
+}
+
+.ch-save-btn {
+  background: var(--accent-dim);
+  border: 1px solid rgba(90,240,160,0.35);
+  color: var(--accent);
+  padding: 0.5rem 1.1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  transition: all 0.15s;
+}
+.ch-save-btn:hover { background: rgba(90,240,160,0.2); }
+
+.ch-save-msg {
+  font-size: 0.68rem;
+  color: var(--correct);
+  transition: opacity 0.3s;
+}
+
+.ch-howto {
+  border-top: 1px solid var(--border);
+  padding-top: 0.85rem;
+  margin-top: 0.25rem;
+}
+
+.ch-howto-title {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text2);
+  margin-bottom: 0.65rem;
+}
+
+.ch-howto-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-size: 0.7rem;
+  color: var(--text2);
+  margin-bottom: 0.45rem;
+  line-height: 1.5;
+}
+
+.ch-step-num {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--border2);
+  color: var(--text);
+  font-size: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ch-howto-step strong { color: var(--text); }
+.ch-howto-step code {
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 2px;
+  padding: 0 0.3rem;
+  font-size: 0.65rem;
+  color: var(--accent);
+}
+
 @media (max-width:768px) {
   .layout { grid-template-columns:1fr; }
   .sidebar { border-right:none; border-bottom:1px solid var(--border); }
@@ -706,6 +860,10 @@ header {
         <button class="nav-tab" onclick="switchTab('cron')" id="tab-cron">
           <span class="tab-icon">⧗</span> Cron Jobs
           <span class="tab-count" id="tc-cron">0</span>
+        </button>
+        <button class="nav-tab" onclick="switchTab('channels')" id="tab-channels">
+          <span class="tab-icon">◈</span> Channels
+          <span class="tab-count" id="tc-channels">0</span>
         </button>
       </div>
     </div>
@@ -815,6 +973,85 @@ header {
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- CHANNELS tab -->
+    <div class="tab-pane" id="pane-channels">
+
+      <!-- Telegram -->
+      <div class="card" id="ch-telegram-card">
+        <div class="card-header">
+          <div style="display:flex;align-items:center;gap:0.6rem">
+            <div class="card-title">Telegram</div>
+            <div id="tg-status-badge" class="ch-badge ch-badge-off">not configured</div>
+          </div>
+          <div style="font-size:0.6rem;color:var(--text2)">@BotFather → /newbot → paste token below</div>
+        </div>
+        <div class="card-body">
+
+          <!-- Status row -->
+          <div class="ch-status-row" id="tg-status-row">
+            <div class="ch-status-item" id="tg-token-row">
+              <div class="ch-dot" id="tg-token-dot"></div>
+              <div>
+                <div class="ch-label">Bot Token</div>
+                <div class="ch-hint" id="tg-token-hint">not set</div>
+              </div>
+            </div>
+            <div class="ch-status-item" id="tg-chatid-row">
+              <div class="ch-dot" id="tg-chatid-dot"></div>
+              <div>
+                <div class="ch-label">Chat ID</div>
+                <div class="ch-hint" id="tg-chatid-hint">not set</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Config form -->
+          <div class="ch-form" id="tg-form">
+            <div class="ch-form-title">Configure Telegram</div>
+            <div class="ch-field">
+              <label class="ch-field-label">Bot Token</label>
+              <input class="ch-input" id="tg-input-token" type="password"
+                placeholder="1234567890:ABCDefGhIJKlmNoPQRsTUVwxyZ" autocomplete="off">
+              <div class="ch-field-hint">From @BotFather — format: 123456789:ABC...</div>
+            </div>
+            <div class="ch-field">
+              <label class="ch-field-label">Your Chat ID</label>
+              <input class="ch-input" id="tg-input-chatid" type="text"
+                placeholder="-100123456789 or 123456789" autocomplete="off">
+              <div class="ch-field-hint">Message @userinfobot on Telegram to get yours</div>
+            </div>
+            <div style="display:flex;gap:0.75rem;align-items:center;margin-top:0.75rem">
+              <button class="ch-save-btn" onclick="saveTelegram()">Save & Activate</button>
+              <div class="ch-save-msg" id="tg-save-msg"></div>
+            </div>
+          </div>
+
+          <!-- How to get Chat ID -->
+          <div class="ch-howto">
+            <div class="ch-howto-title">How to set up</div>
+            <div class="ch-howto-step"><span class="ch-step-num">1</span>Open Telegram → search <strong>@BotFather</strong> → send <code>/newbot</code></div>
+            <div class="ch-howto-step"><span class="ch-step-num">2</span>Copy the token BotFather gives you → paste above</div>
+            <div class="ch-howto-step"><span class="ch-step-num">3</span>Search <strong>@userinfobot</strong> → send any message → copy your ID</div>
+            <div class="ch-howto-step"><span class="ch-step-num">4</span>Click Save, then message your bot to activate</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- More channels coming -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Discord</div>
+          <div class="ch-badge ch-badge-soon">coming soon</div>
+        </div>
+        <div class="card-body">
+          <div style="font-size:0.72rem;color:var(--text2);padding:0.5rem 0">
+            Discord webhook integration is planned. Kroniqo will send trade-style notifications to your server.
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <div class="last-updated" id="last-updated"></div>
@@ -1062,20 +1299,108 @@ function renderAll() {
     'Last updated: ' + new Date().toLocaleTimeString();
 }
 
+// ── Channels ──────────────────────────────────────────────────────────────
+let statusData = null;
+
+function renderChannels() {
+  if (!statusData) return;
+  const ch = statusData.channels || {};
+  const tg = ch.telegram || {};
+
+  // Tab count — number of fully linked channels
+  const linked = Object.values(ch).filter(c => c.linked).length;
+  const total  = Object.keys(ch).length;
+  document.getElementById('tc-channels').textContent = `${linked}/${total}`;
+
+  // Telegram badge
+  const badge = document.getElementById('tg-status-badge');
+  if (tg.linked) {
+    badge.className = 'ch-badge ch-badge-ok';
+    badge.textContent = 'active';
+  } else if (tg.bot_token) {
+    badge.className = 'ch-badge ch-badge-warn';
+    badge.textContent = 'token set — no chat id';
+  } else {
+    badge.className = 'ch-badge ch-badge-off';
+    badge.textContent = 'not configured';
+  }
+
+  // Token dot + hint
+  const tokenDot  = document.getElementById('tg-token-dot');
+  const tokenHint = document.getElementById('tg-token-hint');
+  if (tg.bot_token) {
+    tokenDot.className = 'ch-dot ok';
+    tokenHint.textContent = tg.token_hint || 'set';
+  } else {
+    tokenDot.className = 'ch-dot off';
+    tokenHint.textContent = 'not set';
+  }
+
+  // Chat ID dot + hint
+  const chatDot  = document.getElementById('tg-chatid-dot');
+  const chatHint = document.getElementById('tg-chatid-hint');
+  if (tg.chat_id) {
+    chatDot.className = 'ch-dot ok';
+    chatHint.textContent = tg.chat_hint || 'set';
+  } else {
+    chatDot.className = 'ch-dot off';
+    chatHint.textContent = 'not set';
+  }
+}
+
+async function saveTelegram() {
+  const token  = document.getElementById('tg-input-token').value.trim();
+  const chatId = document.getElementById('tg-input-chatid').value.trim();
+  const msg    = document.getElementById('tg-save-msg');
+
+  if (!token && !chatId) {
+    msg.style.color = 'var(--wrong)';
+    msg.textContent = 'Enter at least one field';
+    return;
+  }
+
+  msg.style.color = 'var(--text2)';
+  msg.textContent = 'Saving…';
+
+  try {
+    const r = await fetch(API + '/api/channels/configure', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel: 'telegram', bot_token: token, chat_id: chatId })
+    });
+    const data = await r.json();
+    if (data.ok) {
+      msg.style.color = 'var(--correct)';
+      msg.textContent = '✓ Saved — restart agent.py to activate';
+      document.getElementById('tg-input-token').value  = '';
+      document.getElementById('tg-input-chatid').value = '';
+      setTimeout(loadAll, 1000);
+    } else {
+      msg.style.color = 'var(--wrong)';
+      msg.textContent = 'Error: ' + (data.error || 'unknown');
+    }
+  } catch (e) {
+    msg.style.color = 'var(--wrong)';
+    msg.textContent = 'Server unreachable';
+  }
+}
+
 // ── Load all data ──────────────────────────────────────────────────────────
 async function loadAll() {
-  const [bio, decisions, skills, cron, profile] = await Promise.all([
+  const [bio, decisions, skills, cron, profile, status] = await Promise.all([
     fetchJSON('/api/biography'),
     fetchJSON('/api/decisions'),
     fetchJSON('/api/skills'),
     fetchJSON('/api/cron'),
     fetchJSON('/api/profile'),
+    fetchJSON('/api/status'),
   ]);
 
-  bioData = bio;
+  bioData       = bio;
   decisionsData = Array.isArray(decisions) ? decisions : [];
-  skillsData = Array.isArray(skills) ? skills : [];
-  cronData = Array.isArray(cron) ? cron : [];
+  skillsData    = Array.isArray(skills)    ? skills    : [];
+  cronData      = Array.isArray(cron)      ? cron      : [];
+  statusData    = status;
 
   // Inject user name into bio for rendering
   if (bioData && profile && profile.name) {
@@ -1083,6 +1408,7 @@ async function loadAll() {
   }
 
   renderAll();
+  renderChannels();
 }
 
 // Auto-refresh every 8s

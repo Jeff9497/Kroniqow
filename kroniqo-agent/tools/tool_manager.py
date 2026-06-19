@@ -147,6 +147,160 @@ def install_tool(tool_name: str) -> tuple[bool, str]:
         return False, f"Install seemed ok but import failed"
 
 
+# ── Tool schemas for LLM function-calling ─────────────────────────────────
+# These are passed to the LLM so it can decide which tool to call.
+# Description quality matters — be specific about WHEN to use each tool.
+
+TOOL_SCHEMAS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": (
+                "Search the web for current information. Use this when the question involves "
+                "recent events, news, weather, scores, prices, release dates, or anything that "
+                "could have changed since training. Also use for factual lookups you're unsure about."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "A short, specific search query (3-6 words). Be precise."
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "write_md",
+            "description": (
+                "Write or append content to one of Kroniqo's memory files. Use when the user "
+                "says 'save this', 'remember that', 'add to learned', 'update soul', 'note this down', "
+                "or asks you to record something for future reference. "
+                "which = 'learned' (information_learned.md), 'soul' (soul.md), "
+                "'agent' (agent.md), 'user' (user.md)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "which": {
+                        "type": "string",
+                        "enum": ["learned", "soul", "agent", "user"],
+                        "description": "Which file to write to."
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "The content to append. Be concise and factual."
+                    }
+                },
+                "required": ["which", "content"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "schedule_cron",
+            "description": (
+                "Schedule a recurring or one-time task. Use when the user says 'every morning', "
+                "'remind me every X', 'send me daily', 'schedule', 'set up a recurring task', "
+                "or any phrase implying something should happen automatically in the future. "
+                "interval_seconds: how often to run (e.g. 3600 = hourly, 86400 = daily). "
+                "one_time: true for 'remind me once in X minutes', false for recurring."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "string",
+                        "description": "Clear description of what to do when the cron fires."
+                    },
+                    "interval_seconds": {
+                        "type": "integer",
+                        "description": "How often to run in seconds. 3600=hourly, 86400=daily, 604800=weekly."
+                    },
+                    "one_time": {
+                        "type": "boolean",
+                        "description": "True for a one-time reminder, false for recurring."
+                    }
+                },
+                "required": ["task", "interval_seconds", "one_time"]
+            }
+        }
+    }
+]
+
+
+def execute_tool(name: str, args: dict) -> str:
+    """
+    Execute a tool by name with args dict.
+    Returns a string result to feed back to the LLM.
+    Called by the tool-calling loop in ask().
+    """
+    try:
+        if name == "web_search":
+            return _exec_web_search(args.get("query", ""))
+
+        elif name == "write_md":
+            which   = args.get("which", "learned")
+            content = args.get("content", "")
+            return _exec_write_md(which, content)
+
+        elif name == "schedule_cron":
+            task             = args.get("task", "")
+            interval_seconds = int(args.get("interval_seconds", 3600))
+            one_time         = bool(args.get("one_time", False))
+            return _exec_schedule_cron(task, interval_seconds, one_time)
+
+        else:
+            return f"Unknown tool: {name}"
+
+    except Exception as e:
+        return f"Tool error ({name}): {e}"
+
+
+def _exec_web_search(query: str) -> str:
+    """Execute web_search tool — uses web_search.py infrastructure."""
+    if not query:
+        return "Error: no query provided"
+    try:
+        import sys, os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+        from tools.web_search import search_and_summarize
+        return search_and_summarize(query)
+    except Exception as e:
+        return f"Search error: {e}"
+
+
+def _exec_write_md(which: str, content: str) -> str:
+    """Execute write_md tool — appends to the appropriate md file."""
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+    try:
+        from agent import write_md_file
+        result = write_md_file(which, content, mode="append")
+        return result
+    except Exception as e:
+        return f"Write error: {e}"
+
+
+def _exec_schedule_cron(task: str, interval_seconds: int, one_time: bool) -> str:
+    """Execute schedule_cron tool — adds job to consequence graph."""
+    try:
+        import sys, os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        from consequence_graph import add_cron_job
+        job_id = add_cron_job(task[:120], interval_seconds, "general", one_time=one_time)
+        freq = "once" if one_time else f"every {interval_seconds}s"
+        return f"✓ Scheduled job #{job_id}: '{task[:60]}' — {freq}"
+    except Exception as e:
+        return f"Schedule error: {e}"
+
+
 def detect_tool_intent(text: str) -> str | None:
     """
     Detect if user wants to use/install a tool.

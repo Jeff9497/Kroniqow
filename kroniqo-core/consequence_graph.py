@@ -182,16 +182,22 @@ def get_skill(name: str) -> dict | None:
 
 # ── Cron jobs ─────────────────────────────────────────────────────────────────
 
-def add_cron_job(task: str, interval_seconds: int, domain: str = "general") -> int:
+def add_cron_job(task: str, interval_seconds: int, domain: str = "general", one_time: bool = False) -> int:
     from datetime import timedelta
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+    # Add one_time column if it doesn't exist yet (migration)
+    try:
+        c.execute("ALTER TABLE cron_jobs ADD COLUMN one_time INTEGER DEFAULT 0")
+        conn.commit()
+    except Exception:
+        pass  # Column already exists
     now = datetime.utcnow()
     next_run = (now + timedelta(seconds=interval_seconds)).isoformat()
     c.execute("""
-        INSERT INTO cron_jobs (task, domain, interval_seconds, next_run, created_at)
-        VALUES (?, ?, ?, ?, ?)
-    """, (task, domain, interval_seconds, next_run, now.isoformat()))
+        INSERT INTO cron_jobs (task, domain, interval_seconds, next_run, created_at, one_time)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (task, domain, interval_seconds, next_run, now.isoformat(), 1 if one_time else 0))
     job_id = c.lastrowid
     conn.commit()
     conn.close()
@@ -217,15 +223,19 @@ def mark_cron_ran(job_id: int):
     from datetime import timedelta
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT interval_seconds FROM cron_jobs WHERE id=?", (job_id,))
+    c.execute("SELECT interval_seconds, one_time FROM cron_jobs WHERE id=?", (job_id,))
     row = c.fetchone()
     if row:
-        interval = row[0]
+        interval, one_time = row[0], row[1] if len(row) > 1 else 0
         now = datetime.utcnow()
-        next_run = (now + timedelta(seconds=interval)).isoformat()
-        c.execute("""
-            UPDATE cron_jobs SET last_run=?, next_run=?, run_count=run_count+1 WHERE id=?
-        """, (now.isoformat(), next_run, job_id))
+        if one_time:
+            # Delete after running — it was a one-time job
+            c.execute("DELETE FROM cron_jobs WHERE id=?", (job_id,))
+        else:
+            next_run = (now + timedelta(seconds=interval)).isoformat()
+            c.execute("""
+                UPDATE cron_jobs SET last_run=?, next_run=?, run_count=run_count+1 WHERE id=?
+            """, (now.isoformat(), next_run, job_id))
     conn.commit()
     conn.close()
 
