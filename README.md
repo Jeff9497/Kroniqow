@@ -8,20 +8,29 @@ Every AI agent today resets. It can have memory — facts it recalls — but it 
 
 Kroniqo is different.
 
-Kroniqo agents are **shaped by consequence**. Every decision they make is logged with its outcome. Over time, a Consequence Graph accumulates — not a list of facts, but a living record of what worked, what failed, and under what conditions. Before every new decision, the agent consults its own biography and adjusts accordingly.
+Kroniqo is shaped by consequence. Every decision it makes is logged with its outcome. Over time, a Consequence Graph accumulates — not a list of facts, but a living record of what worked, what failed, and under what conditions. Before every new decision, the agent consults its own biography and adjusts accordingly.
 
 The result: an AI whose behavior genuinely evolves with experience.
 
 ## Modules
 
 ### `kroniqo-core`
-The shared aging engine — Consequence Graph (SQLite), recency decay, biography building.
+The aging engine. Consequence Graph (SQLite) with recency decay (`e^(-0.03 * days_ago)`) — recent failures weigh more than old wins. Behavioral posture shifts automatically: repeated recent mistakes → conservative; a clean recent streak → bold.
 
 ### `kroniqo-agent`
-The full agent. Multi-backend LLM routing, a tool-calling decision loop, web search, voice, vision, and a Telegram interface.
+The agent itself — CLI, Telegram bot, FastAPI dashboard, and a tool-calling loop.
+
+- **Multi-backend LLM routing** — Groq, Mistral, Gemini, Cerebras, Claude. Switch live, no restart.
+- **Tool-calling loop** — the LLM decides when to call a tool (web search, file write, scheduling), executes it, and reasons over the result before replying. Not regex-triggered — genuinely agent-decided.
+- **Web search** — tiered chain: `wttr.in` for weather, DDG HTML, sports/news RSS feeds, public SearXNG instances, Wikipedia, DDG Instant as last resort.
+- **Vision** — Llama 4 Scout via Groq, wired through Telegram image uploads.
+- **Voice** — Groq Whisper STT for Telegram voice notes.
+- **AutoJudge** — a second model grades each decision's outcome and feeds it back into the Consequence Graph, configurable to use a backend separate from the active agent model.
+- **Identity files** — `agent.md`, `user.md`, `soul.md`, `information_learned.md`, editable from chat or the dashboard.
+- **Cron scheduling** — recurring or one-time tasks, set by natural language ("remind me every morning"), fired by a background scheduler.
 
 ### `kroniqo-ui`
-FastAPI dashboard — decision history, identity files (agent/user/soul/learned), model selectors, cron job monitor.
+FastAPI + single-page dashboard. Live model selectors for Groq and Mistral, identity file editor, decision/biography viewer, cron job list.
 
 ## Core Concept: Consequence Graph vs Memory
 
@@ -36,34 +45,26 @@ FastAPI dashboard — decision history, identity files (agent/user/soul/learned)
 
 Kroniqo measures age in three layers:
 
-1. **Chronological age** — real timestamps, Day 1 vs Day 90
-2. **Experiential age** — number of consequential events, not days
-3. **Recency decay** — recent failures weigh more than old victories — `e^(-0.03 × days_ago)`
+1. **Chronological age** — real timestamps
+2. **Experiential age** — number of consequential decisions, not days passed
+3. **Recency decay** — recent failures weigh more than old victories
 
-## What Kroniqo Can Do
+## Supported Backends
 
-- **Multi-backend LLM routing** — Groq, Mistral, Gemini, Cerebras, Claude, with automatic fallback if one fails
-- **Tool-calling loop** — the LLM decides when to search the web, write to memory, or schedule a task; no rigid command syntax required
-  - `web_search` — current info, news, weather (via wttr.in), sports
-  - `write_md` — saves to agent/user/soul/learned memory files
-  - `schedule_cron` — sets up recurring or one-time scheduled tasks
-- **14 Mistral models + Groq model catalogue** — switch model at runtime, no restart (`mistral use devstral`, `groq use llama-4-scout`)
-- **Vision** — Llama 4 Scout via Groq, wired through Telegram image uploads
-- **Voice** — Groq Whisper transcribes voice notes sent via Telegram
-- **AutoJudge** — a separate model grades each decision's outcome, feeding the Consequence Graph
-- **Layered web search** — wttr.in for weather, DDG HTML, RSS (news/sports), SearXNG public instances, Wikipedia, DDG Instant — tries each in order until one succeeds
-- **Telegram bot + FastAPI dashboard** running side-by-side
+| Backend | Free tier | Notes |
+|---|---|---|
+| Groq | 1,000 req/day | Fastest. Multiple models, vision, Whisper STT |
+| Mistral | 1B tokens/month | 14 models — small/medium/large, Codestral, Devstral, Magistral |
+| Gemini | 1,500 req/day | Most generous free tier |
+| Cerebras | 1M tokens/day | Highest volume free tier |
+| Claude | Paid | Anthropic API |
 
 ## Stack
 
 - Python 3.11
-- SQLite (consequence graph storage — lightweight, no server needed)
+- SQLite (Consequence Graph storage)
 - FastAPI (dashboard)
 - python-telegram-bot (Telegram interface)
-
-## Status
-
-🔨 Active development.
 
 ## Setup
 
@@ -77,20 +78,17 @@ pip install -r requirements.txt
 
 ```bash
 # Set at least one backend key
-set GROQ_API_KEY=your_key        # recommended — fastest free tier, vision + voice support
-set MISTRAL_API_KEY=your_key     # 14 models, generous free tiers
-set GEMINI_API_KEY=your_key      # most generous free tier
-set CEREBRAS_API_KEY=your_key    # highest volume free tier
-set ANTHROPIC_API_KEY=your_key   # Claude (paid)
+export GROQ_API_KEY=your_key        # recommended — fastest free tier
+export MISTRAL_API_KEY=your_key     # 14 models, generous free tier
+export GEMINI_API_KEY=your_key      # most generous free tier
+export CEREBRAS_API_KEY=your_key    # highest volume free tier
+export ANTHROPIC_API_KEY=your_key   # Claude (paid)
 
-# For Telegram bot
-set TELEGRAM_BOT_TOKEN=your_token
+# Optional — Telegram bot
+export TELEGRAM_BOT_TOKEN=your_token
 
-# Optional — self-hosted SearXNG instance (falls back to public instances if unset)
-set SEARXNG_URL=http://localhost:8888
-
-# Optional — make AutoJudge always use a separate backend from the active agent
-set KRONIQO_JUDGE_BACKEND=auto   # auto | groq | gemini
+# Optional — self-hosted SearXNG (falls back to public instances if unset)
+export SEARXNG_URL=http://localhost:8888
 ```
 
 ### Run CLI agent
@@ -112,14 +110,6 @@ python telegram_bot.py
 ```bash
 cd kroniqo-ui
 python api_server.py
-# → http://127.0.0.1:7842
-```
-
-### Switch models at runtime (no restart)
-
-```
-groq use llama-4-scout
-mistral use devstral
 ```
 
 ### Batch debug broken code
@@ -129,3 +119,7 @@ from kroniqo_agent.tools.code_runner import debug_folder
 from kroniqo_agent.agent import ask
 debug_folder("kroniqo-agent/test_bugs", ask, backend="groq")
 ```
+
+## Status
+
+🔨 Active development.
