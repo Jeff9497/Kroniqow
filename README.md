@@ -1,4 +1,4 @@
-# Kroniqo
+# Kroniqow
 
 > *AI that doesn't just remember — it ages.*
 
@@ -6,9 +6,9 @@
 
 Every AI agent today resets. It can have memory — facts it recalls — but it has no **biography**. It doesn't become more cautious after repeated failures in a domain. It doesn't grow bolder in areas it has consistently mastered. It has no skin in the game.
 
-Kroniqo is different.
+Kroniqow is different.
 
-Kroniqo is shaped by consequence. Every decision it makes is logged with its outcome. Over time, a Consequence Graph accumulates — not a list of facts, but a living record of what worked, what failed, and under what conditions. Before every new decision, the agent consults its own biography and adjusts accordingly.
+Kroniqow is shaped by consequence. Every decision it makes is logged with its outcome. Over time, a Consequence Graph accumulates — not a list of facts, but a living record of what worked, what failed, and under what conditions. Before every new decision, the agent consults its own biography and adjusts accordingly.
 
 The result: an AI whose behavior genuinely evolves with experience.
 
@@ -43,7 +43,7 @@ FastAPI + single-page dashboard. Live model selectors for Groq and Mistral, iden
 
 ## Time is Measured in Scars
 
-Kroniqo measures age in three layers:
+Kroniqow measures age in three layers:
 
 1. **Chronological age** — real timestamps
 2. **Experiential age** — number of consequential decisions, not days passed
@@ -112,14 +112,6 @@ cd kroniqo-ui
 python api_server.py
 ```
 
-### Batch debug broken code
+---
 
-```python
-from kroniqo_agent.tools.code_runner import debug_folder
-from kroniqo_agent.agent import ask
-debug_folder("kroniqo-agent/test_bugs", ask, backend="groq")
-```
-
-## Status
-
-🔨 Active development.
+Built by [Jeff9497](https://github.com/Jeff9497)
